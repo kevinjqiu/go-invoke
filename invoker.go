@@ -1,36 +1,25 @@
 package go_invoke
 
 import (
-	"io"
+	"bytes"
 	"os"
 	"sigs.k8s.io/kind/pkg/exec"
 )
 
-type options struct {
-	stdout io.Writer
-	stderr io.Writer
-	stdin  io.Writer
-	envs   []string
-}
-
-type Option interface {
-	apply(*options)
-}
-
-type optionFunc func(*options)
-
-func (f optionFunc) apply(o *options) {
-	f(o)
-}
-
 type CommandInvoker struct{}
 
-func (ci *CommandInvoker) Run(cmd string, args []string, opts ...Option) ([]byte, error) {
+func (ci *CommandInvoker) Run(cmd string, args []string, opts ...Option) ([]byte, []byte, error) {
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
 	o := options{
-		stdout: os.Stdout,
-		stdin:  os.Stdin,
-		stderr: os.Stderr,
-		envs:   []string{},
+		stdout:    &stdout,
+		stderr:    &stderr,
+		stdin:     os.Stdin,
+		envs:      []string{},
+		teeStdout: false,
 	}
 
 	for _, opt := range opts {
@@ -38,6 +27,23 @@ func (ci *CommandInvoker) Run(cmd string, args []string, opts ...Option) ([]byte
 	}
 
 	c := exec.Command(cmd, args...)
-	c.SetEnv()
-	return []byte{}, nil
+	c.SetEnv(o.envs...)
+	c.SetStdin(o.stdin)
+	c.SetStdout(o.stdout)
+	c.SetStderr(o.stderr)
+
+	err := c.Run()
+	if err != nil {
+		return stdout.Bytes(), stderr.Bytes(), err
+	}
+
+	if o.teeStdout {
+		os.Stdout.Write(stdout.Bytes())
+	}
+
+	if o.teeStderr {
+		os.Stderr.Write(stderr.Bytes())
+	}
+
+	return stdout.Bytes(), stderr.Bytes(), nil
 }
