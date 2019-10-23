@@ -27,8 +27,8 @@ func TestInvoker_Run(t *testing.T) {
 		},
 		{
 			Name: "default options with env vars",
-			Cmd: "echo",
-			Args: []string{"hello", "$YOURNAME"},
+			Cmd: "sh",
+			Args: []string{"-c", "echo hello $YOURNAME"},
 			Options: []Option{WithEnvs([]string{"YOURNAME=john"})},
 			Stdout: "hello john\n",
 			Stderr: "",
